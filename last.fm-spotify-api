@@ -1,0 +1,115 @@
+#include <LiquidCrystal_I2cTUR.h>
+
+
+
+
+#include <Wire.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+// set the LCD number of columns and rows
+int lcdColumns = 16;
+int lcdRows = 2;
+
+// set LCD address, number of columns and rows
+// if you don't know your display address, run an I2C scanner sketch
+LiquidCrystal_I2cTUR lcd(0x27, lcdColumns, lcdRows);  
+
+const char* ssid = "ag adin";
+const char* password = "sifren";
+
+void setup() {
+        // initialize LCD
+  lcd.init();
+
+  // turn on LCD backlight                      
+  lcd.backlight();
+
+  lcd.print("Wifi Bağlanıyor!");
+
+  
+  Serial.begin(115200);
+
+  // WiFi bağlantısını başlat
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("WiFi bağlanıyor...");
+  }
+
+  Serial.println("WiFi bağlantısı başarılı!");
+
+
+}
+
+void loop() {
+  // Last.fm API'sine istek yap
+  String url = "https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=BURAYAKULLANICIADINIGIR&api_key=BURAYAAPİKEYİNİGİR&format=json&limit=1";
+  HTTPClient http;
+  http.begin(url);
+
+  int httpResponseCode = http.GET();
+
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    // Serial.println(response);
+
+    DynamicJsonDocument json(8192);
+    DeserializationError error = deserializeJson(json, response);
+
+    if (error) {
+      Serial.print("JSON ayrıştırma hatası: ");
+      Serial.println(error.c_str());
+    } else {
+      const char* artist = json["recenttracks"]["track"][0]["artist"]["#text"].as<char*>();
+      const char* trackName = json["recenttracks"]["track"][0]["name"].as<char*>();
+      const char* album = json["recenttracks"]["track"][0]["album"]["#text"].as<char*>();
+      const char* imageUrl = nullptr;
+      JsonArray imageArray = json["recenttracks"]["track"][0]["image"];
+      for (const auto& image : imageArray) {
+        const char* imageSize = image["size"].as<char*>();
+        if (strcmp(imageSize, "extralarge") == 0) {
+          imageUrl = image["#text"].as<char*>();
+          break;
+        }
+      }
+      
+/**   Serial.print("Son dinlenen şarkı: ");
+      Serial.print(trackName);
+      Serial.print(" - ");
+      Serial.print(album);
+      Serial.print(" - ");
+      Serial.print(artist);
+      Serial.print(" - ");
+      Serial.println(imageUrl); */
+      
+      
+      Serial.print("Son dinlenen sarki: ");
+      Serial.println(trackName);
+      Serial.print("Album: ");
+      Serial.println(album);
+      Serial.print("Sanatci: ");
+      Serial.println(artist);
+      Serial.print("Album Fotografi: ");
+      Serial.println(imageUrl);    
+      Serial.println("──────────────────────────────────────");    
+
+
+      lcd.clear();  // Ekrandaki eski verileri temizle
+      lcd.setCursor(0, 0);
+      lcd.print(trackName);
+      lcd.setCursor(0, 1);
+      lcd.print(artist);
+
+      
+    }
+  } else {
+    Serial.print("HTTP hata kodu: ");
+    Serial.println(httpResponseCode);
+  }
+
+  http.end();
+
+  delay(1000);
+}
